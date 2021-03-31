@@ -831,18 +831,14 @@ export class ReactiveArray<InputType> {
       const changeDelta = Math.min(Math.max(rangeEnd - spliceIndex, 0), insertCount - deleteCount);
       const rangeEndNormalized = normalizeNumber(rangeEnd);
 
-      // We only change anything if splice index is before our
-      // `rangeEndNormalized` and `affectedItemsEnd` falls on
-      // or after our `rangeStart`
-      // console.log(spliceIndex, rangeStart, rangeEndNormalized, rangeEnd, affectedItemsEnd, length);
+      // TODO: Ignore splices that don't concern us
       if (true) {
-        // Now apply the shift, insEnd, and delEnd while inserting our new
-        // items
         if (reversed) {
           // rangeStart *= -1;
           // rangeEnd *= -1;
           // ([rangeEnd, rangeStart] = [rangeStart, rangeEnd]);
           slicedArray.splice(0);
+          // TODO: Reversed range
         } else {
           // Delete stuff at the end first
           slicedArray.splice(

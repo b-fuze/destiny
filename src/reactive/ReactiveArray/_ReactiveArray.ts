@@ -511,7 +511,7 @@ export class ReactiveArray<InputType> {
     if (shiftedBy) {
       for (let i = start + deleteCount; i < this.#indices.length; i++) {
         // console.log(this.#indices, i, this.length.value);
-        this.#indices[i].value += shiftedBy;
+        this.#indices[i] && (this.#indices[i].value += shiftedBy);
       }
     }
 
@@ -804,327 +804,91 @@ export class ReactiveArray<InputType> {
       deleteCount: number,
       ...values: Array<TArrayValueType<InputType>>
     ) => {
-      // console.warn("slice received update", {index, deleteCount, values: JSON.stringify(values)});
-      // console.log("sliced array at start", JSON.stringify(slicedArray.value));
-      console.warn(
-        "Received event", index, deleteCount, values.length,
-        "len", this.length.value, JSON.stringify(range), JSON.stringify(range.map(normalizeNumber))
-      );
-      const [origStart, origEnd] = range;
-      const movement = values.length - deleteCount;
-      const startChange = origStart < 0 ? movement : 0;
-      const endChange = origEnd < 0 ? movement : 0;
-      const [start, end] = range.map(normalizeNumber);
-      const targetLength = Math.min(end, this.length.value) - start;
-      // console.log({start, end, targetLength});
-      // console.log({oldLength: slicedArray.length.value});
-      //<OK>
-      // console.log("END", end, index);
-      if (index >= end) return;
-      if (deleteCount === values.length && index + deleteCount < start) return;
-      if (end <= start || this.length.value === 0 || end <= 0) {
-        if (slicedArray.length.value) {
-          slicedArray.splice(0, Infinity);
-        }
-        return;
-      }
-      //</OK>
+      const normalizeNumber = (
+        input: number,
+      ): number => {
+        return input < 0 ? length + input : input;
+      };
 
-      if (startChange > 0) {
-        slicedArray.splice(0, movement);
-        // slicedArray.splice() FIX END
-      } else if (startChange < 0) {
-        if (this.length.value - movement > slicedArray.length.value) {
-          slicedArray.splice(
-            0,
-            0,
-            ...this.value.slice(start, start + movement),
-          );
-        }
+      let rangeStart = range[0];
+      let rangeEnd = range[1];
+      let spliceIndex = normalizeNumber(index);
+
+      let length = this.#value.length;
+      let reversed = rangeStart < 0;
+
+      // If direction is reversed/anchored to end
+      // then reverse so that we're only working in
+      // one direction
+      if (reversed) {
+        rangeStart *= -1;
+        rangeEnd *= -1;
+        ([rangeEnd, rangeStart] = [rangeStart, rangeEnd]);
+        spliceIndex = length - spliceIndex - deleteCount;
       }
 
+      const insertCount = values.length;
+      const changeDelta = Math.min(Math.max(rangeEnd - spliceIndex, 0), insertCount - deleteCount);
+      const rangeEndNormalized = normalizeNumber(rangeEnd);
 
-
-
-
-
-
-
-
-
-      if (origStart < 0 && origEnd < 0) { // Both negative
-        console.log("Both negative");
-        //
-        const thisLength = this.value.length;
-        const adjustedStart = thisLength - origStart; // convert negative index to positive
-        const adjustedEnd = thisLength - origEnd;     // convert negative index to positive
-        const targetLength = adjustedEnd - adjustedStart;
-        const deltaLength = values.length - deleteCount;
-        console.log(index, adjustedEnd);
-        if (index < adjustedEnd) { // change started 
-          console.log("index < adjustedEnd");
-          if (deltaLength < 0) { // length didn't change
-            console.log("shrank");
-            slicedArray.splice(
-              deltaLength,
-              Infinity,
-            );
-            if ( // ?
-              slicedArray.value.length < targetLength // currently too short
-              && this.#value.length + origEnd > slicedArray.length.value
-            ) {
-              slicedArray.splice(
-                0,
-                0,
-                ...this.value.slice(
-                  -(slicedArray.length.value - origEnd) - (targetLength - slicedArray.length.value),
-                  -(slicedArray.length.value - origEnd),
-                ),
-              );
-            } else { // ? 
-              // TODO
-            }
-          } else { // length did change
-
-          }
+      // We only change anything if splice index is before our
+      // `rangeEndNormalized` and `affectedItemsEnd` falls on
+      // or after our `rangeStart`
+      // console.log(spliceIndex, rangeStart, rangeEndNormalized, rangeEnd, affectedItemsEnd, length);
+      if (true) {
+        // Now apply the shift, insEnd, and delEnd while inserting our new
+        // items
+        if (reversed) {
+          // rangeStart *= -1;
+          // rangeEnd *= -1;
+          // ([rangeEnd, rangeStart] = [rangeStart, rangeEnd]);
+          slicedArray.splice(0);
         } else {
-          // change was outside the range, nothing needs to be done
-        }
-      } else if (origStart < 0) { // (-1, 1)
-        const thisLength = this.value.length;
-        const deltaLength = values.length - deleteCount;
-        const adjustedStart = thisLength + origStart;
-        const adjustedEnd = Math.min(origEnd, thisLength);
-        const targetLength = adjustedEnd - adjustedStart;
-        console.log({
-          thisLength,
-          adjustedStart,
-          adjustedEnd,
-          targetLength,
-          deltaLength,
-        });
-        
-        if (index < adjustedStart) {
+          // Delete stuff at the end first
           slicedArray.splice(
+            slicedArray.value.length - Math.max(Math.min(changeDelta, length - rangeEndNormalized), 0),
+            Math.max(changeDelta, 0),
+          );
+
+          // Then delete stuff at the beginning
+          console.log(slicedArray.value);
+          const deleteBegin = Math.max(spliceIndex - rangeStart, 0);
+          slicedArray.splice(
+            deleteBegin,
+            deleteCount,
+          );
+          console.log(slicedArray.value);
+          console.log({ spliceIndex, rangeStart, rangeEndNormalized, insertCount, changeDelta, deleteCount });
+
+          // Now insert stuff at the beginning/middle
+          const insertBegin = Math.max(spliceIndex, rangeStart);
+          const insertEnd = Math.min(
+            insertBegin + insertCount,
+            rangeEndNormalized,
+          );
+          slicedArray.splice(
+            spliceIndex - rangeStart,
             0,
-            Math.max(0, deleteCount - adjustedStart),
-            ...this.value.slice(
-              adjustedStart, 
-              adjustedStart + (targetLength - slicedArray.value.length),
+            ...this.#value.slice(
+              insertBegin,
+              insertEnd,
             ),
           );
-        } else { // change after start 
-          // TODO: (-1, 1) change after start
-        }
-      } else if (origEnd < 0) { // (1, -1)
-        //
-      } else { // (1, 1)
-        console.log("both positive");
-        const targetLength = origEnd - origStart;
-        const deltaLength = values.length - deleteCount;
-        console.table({origStart, origEnd, index, targetLength, deltaLength, values, deleteCount});
-        if (index < origStart) {
-          if (deltaLength < 0) { // shrank
-            slicedArray.splice(0, -1 * deltaLength);
-            const slicedArrayLength = slicedArray.value.length;
-            if (
-              slicedArrayLength < targetLength // too short
-              && this.value.length - index > slicedArrayLength // we have something we can add
-            ) {
-              const slicedArrayEndPositionRelativeToOriginal = origStart + slicedArrayLength;
-              slicedArray.splice(
-                Infinity,
-                0,
-                ...this.value.slice(
-                  slicedArrayEndPositionRelativeToOriginal,
-                  slicedArrayEndPositionRelativeToOriginal + (targetLength - slicedArrayLength),
-                ),
-              );
-            }
-          } else if (deltaLength > 0) { // expanded
-            console.log("expanded!");
-            const slicedArrayStartPositionRelativeToOriginal = origStart - index;
-            // console.log(
-            //   slicedArrayStartPositionRelativeToOriginal,
-            //   slicedArrayStartPositionRelativeToOriginal + (deltaLength - slicedArrayStartPositionRelativeToOriginal),
-            // );
-            slicedArray.splice(
-              0,
-              0, 
-              ...this.value.slice(
-                slicedArrayStartPositionRelativeToOriginal,
-                slicedArrayStartPositionRelativeToOriginal + deltaLength,
-              ),
-            );
+          console.log(slicedArray.value);
 
-            const slicedArrayLength = slicedArray.value.length;
-            if (slicedArrayLength > targetLength) {
-              slicedArray.splice(
-                targetLength,
-                Infinity,
-              );
-            }
-          } else { // length remained unaffected
-            // Change didn't affect target array 
-          }
-        } else if (index >= origStart && index < origEnd) {
-          const editAt = index - origStart;
-          const addedItems = (
-            (editAt + values.length <= targetLength)
-            ? values
-            : values.slice(0, targetLength - editAt)
-          );
-          const deletedItems = (
-            (editAt + values.length >= targetLength)
-            ? Infinity
-            : deleteCount
-          );
+          // Now append missing stuff at the end
+          const maxEndAdd = Math.min(rangeEndNormalized - rangeStart, deleteCount, Math.max(length - rangeStart, 0));
+          console.log({maxEndAdd, deleteBegin, length, insertEnd});
           slicedArray.splice(
-            editAt,
-            deletedItems,
-            ...addedItems,
+            slicedArray.value.length,
+            0,
+            ...this.#value.slice(
+              Math.max(rangeEndNormalized - maxEndAdd + Math.max(insertEnd - insertBegin, 0), rangeStart, insertEnd),
+              rangeEndNormalized,
+            ),
           );
-        } else {
-          // Change didn't affect target array
         }
       }
-
-
-
-
-
-
-
-
-
-
-
-      // console.log("i", index, "s", start, "e", end, origStart, origEnd);
-      // if (index < start) {
-      //   const movement = values.length - deleteCount;
-      //   if (movement < 0) {
-      //     slicedArray.splice(0, -movement);
-      //   } else {
-      //     slicedArray.splice(
-      //       0,
-      //       0,
-      //       ...this.value.slice(start, start + movement),
-      //     );
-      //   }
-      // } else {
-      //   // const adjustedDeleteCount = deleteCount + 
-      //   slicedArray.splice(index - start, deleteCount, ...values);
-          
-      //   const length = slicedArray.length.value;
-      //   const lengthDifference = length - targetLength;
-      //   console.log(lengthDifference);
-      //   if (lengthDifference < 0) {
-      //     console.log("LENGTH ADJUSTED");
-      //     // const endPosition = start + length;
-      //     slicedArray.splice(
-      //       length,
-      //       0,
-      //       ...this.value.slice(
-      //         start, 
-      //         start - lengthDifference,
-      //       ),
-      //     );
-      //   }
-      // }
-
-      // const length = slicedArray.length.value;
-      // const lengthDifference = length - targetLength;
-      // if (lengthDifference > 0) {
-      //   slicedArray.splice(
-      //     -lengthDifference,
-      //     lengthDifference,
-      //   );
-      // } else if (lengthDifference < 0) {
-      //   const endPosition = start + length;
-      //   slicedArray.splice(
-      //     length,
-      //     0,
-      //     ...this.value.slice(
-      //       endPosition, 
-      //       endPosition - lengthDifference,
-      //     ),
-      //   );
-      // }
-      console.warn("DONE");
-      // console.log("sliced array at end", JSON.stringify(slicedArray.value));
-      // console.log("Done with updating sliced array after event received");
-
-      // const relativeStart = index - start;
-      // const adjustment = Math.max(start - index, 0);
-      // const adjustedIndex = Math.max(
-      //   0,
-      //   relativeStart,
-      // );
-      // const adjustedDeleteCount = (index + deleteCount) < start
-      //   ? values.length - deleteCount
-      //   : Math.max(0, deleteCount - adjustment);
-      // const insertedItems = values.slice(adjustment);
-      // const newLength = slicedArray.value.length - adjustedDeleteCount + insertedItems.length;
-      // // const lengthDifference = newLength - targetLength;
-      // // if (newLength > targetLength) {
-      // //   console.log("Had", JSON.stringify(insertedItems), "removing", -lengthDifference, lengthDifference);
-      // //   insertedItems.splice(-lengthDifference, lengthDifference);
-      // // } else if (newLength < targetLength) {
-      // //   console.log({start, newLength, lengthDifference});
-      // //   console.log("adding in", start + newLength, start + newLength - lengthDifference);
-      // //   insertedItems.push(...this.#value.slice(start + newLength, start + newLength - lengthDifference));
-      // // }
-      // console.log({newLength, targetLength});
-      // console.log({adjustedIndex, adjustedDeleteCount, insertedItems});
-      // slicedArray.splice(
-      //   adjustedIndex,
-      //   adjustedDeleteCount,
-      //   ...insertedItems,
-      // );
-
-      // console.log(index < end, index, end, index + Math.max(deleteCount, values.length) > start, values.length);
-      // if (index < end && index + Math.max(deleteCount, values.length) > start) { // If change is not outside range of interest
-      //   const relativeStart = index - start;
-      //   const adjustedIndex = Math.min(
-      //     slicedArray.length.value,
-      //     Math.max(
-      //       0,
-      //       relativeStart,
-      //     ),
-      //   );
-      //   const adjustedDeleteCount = Math.max(0, deleteCount + relativeStart);
-      //   const oldLength = end - start;
-      //   // console.log(values);
-      //   console.log({
-      //     index,
-      //     start,
-      //     end,
-      //     relativeStart,
-      //     adjustedIndex,
-      //     values,
-      //     parentArrayLength: this.#value.length,
-      //     slicedArrayLength: slicedArray.length.value,
-      //     slicedArrayItems: JSON.stringify(slicedArray.value),
-      //     parentArrayItems: JSON.stringify(this.value),
-      //   });
-      //   const insertedItems = values.slice(Math.max(0, -relativeStart));
-      //   console.log(JSON.stringify(insertedItems));
-      //   const newLength = slicedArray.length.value - adjustedDeleteCount + insertedItems.length;
-      //   const deltaLength = newLength - oldLength;
-      //   if (deltaLength > 0) { // Too many items, remove some
-      //     console.log(`Too many items, removing ${-deltaLength}, because ${newLength} - ${oldLength}`);
-      //     insertedItems.splice(-deltaLength, Infinity);
-      //   } else if (deltaLength < 0 && end < this.#value.length) { // Too few items, add some if there are any to add
-      //     insertedItems.push(...this.#value.slice(end + deltaLength, end));
-      //   }
-      //   console.log(JSON.stringify(insertedItems));
-      //   slicedArray.splice(
-      //     adjustedIndex,
-      //     adjustedDeleteCount,
-      //     ...insertedItems,
-      //   );
-
-      // }
     });
     
     // console.log("Slice added, callbacks: ", [...this.#callbacks]);

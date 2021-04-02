@@ -857,8 +857,8 @@ export class ReactiveArray<InputType> {
         // First apply the splice
         const spliceIndexRelative = spliceIndex - rangeStart;
         const spliceIndexRelativeLocal = Math.max(spliceIndexRelative, 0);
-        const spliceDelCount = Math.max(deleteCount - Math.max(rangeStart - spliceIndex, 0), 0);
-        const spliceInsCount = Math.max(insertCount - Math.max(rangeStart - spliceIndex, 0), 0);
+        const spliceDelCount = Math.max(Math.min(deleteCount - Math.max(rangeStart - spliceIndex, 0), rangeSize - spliceIndexRelativeLocal), 0);
+        const spliceInsCount = Math.max(Math.min(insertCount - Math.max(rangeStart - spliceIndex, 0), rangeSize - spliceIndexRelativeLocal), 0);
         const curArrayLength = slicedArray.value.length;
         const notRelativeInfiniteEnd = rangeEnd !== Infinity && rangeEnd > 0;
 
@@ -881,11 +881,15 @@ export class ReactiveArray<InputType> {
 
         // There's been some kinda shift, we have to compensate
         if (changeDelta) {
-          const delEnd = Math.max(Math.min(changeDelta, curArrayLength) - spliceDelCount, 0);
-          const delStartCount = Math.max(changeDelta * -1, 0);
-          const delStart = Math.max(Math.min(delStartCount - spliceDelCount, rangeSize), 0);
-          const addEnd = Math.min(delStart, rangeSize) - spliceInsCount;
-          const addStart = Math.min(insertCount, rangeSize) - spliceInsCount;
+          const delEnd = Math.max(Math.min(changeDelta, curArrayLength - spliceIndexRelativeLocal) - spliceDelCount, 0);
+          const delStartCount = Math.max(changeDelta * -1, 0) - Math.max((spliceIndex + deleteCount) - rangeStart, 0);
+          const delStart = Math.max(Math.min(delStartCount, rangeSize), 0);
+          const addEnd = Math.max(Math.min(Math.max(delStart, spliceDelCount, (rangeSize - (slicedArray.value.length - delStart))), rangeSize) - spliceInsCount, 0);
+          const spliceChangeDelta = spliceInsCount - spliceDelCount;
+          const addStart = Math.max(Math.min(
+            Math.min(insertCount, rangeSize) - (spliceInsCount + Math.max(spliceChangeDelta * -1, 0)),
+            rangeEndNormalized - (spliceIndex + spliceInsCount),
+          ), 0);
 
           if (delEnd) {
             // Only delete from the end if it's not relative or infinite,
@@ -902,39 +906,43 @@ export class ReactiveArray<InputType> {
           } else {
             // Delete from the start
             slicedArray.splice(
-              spliceDelCount,
+              spliceInsCount,
               delStart,
             );
           }
 
           console.log("AFTER DELETED", slicedArray.value);
-          if (addEnd) {
-            // Only add to the end if it's not relative or infinite
-            if (notRelativeInfiniteEnd) {
-              const addEndStart = rangeEndNormalized - addEnd;
+          // Only add to the array if the first splice added more than
+          // 0 and didn't add the same amount it deleted (which would 
+          // mean that it has sufficient items)
+          if (!spliceInsCount || spliceChangeDelta) {
+            if (addEnd) {
+              // Only add to the end if it's not relative or infinite
+              if (notRelativeInfiniteEnd) {
+                slicedArray.splice(
+                  slicedArray.value.length,
+                  0,
+                  ...this.#value.slice(
+                    rangeEndNormalized - addEnd,
+                    rangeEndNormalized,
+                  ),
+                );
+              }
+            } else {
+              // Add at the start of the range
+              const addStartStart = rangeStart + spliceInsCount;
               slicedArray.splice(
-                addEndStart - rangeStart,
+                spliceInsCount,
                 0,
                 ...this.#value.slice(
-                  addEndStart,
-                  rangeEndNormalized,
+                  addStartStart,
+                  addStartStart + addStart,
                 ),
               );
             }
-          } else {
-            // Add at the start of the range
-            const addStartStart = rangeStart + spliceInsCount;
-            slicedArray.splice(
-              spliceInsCount,
-              0,
-              ...this.#value.slice(
-                addStartStart,
-                addStartStart + addStart,
-              ),
-            );
           }
 
-          console.log({ notRelativeInfiniteEnd, rangeStart, spliceIndex, spliceInsCount, spliceDelCount, delEnd, delStart, delStartCount, addEnd, addStart, changeDelta }, slicedArray.value);
+          console.log({ notRelativeInfiniteEnd, rangeStart, spliceIndex, spliceIndexRelativeLocal, spliceInsCount, spliceDelCount, delEnd, delStart, delStartCount, addEnd, addStart, changeDelta }, slicedArray.value);
         }
       }
     });

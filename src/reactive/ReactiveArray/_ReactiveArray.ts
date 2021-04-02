@@ -887,7 +887,7 @@ export class ReactiveArray<InputType> {
           const addEnd = Math.max(Math.min(Math.max(delStart, spliceDelCount, (rangeSize - (slicedArray.value.length - delStart))), rangeSize) - spliceInsCount, 0);
           const spliceChangeDelta = spliceInsCount - spliceDelCount;
           const addStart = Math.max(Math.min(
-            Math.min(insertCount, rangeSize) - (spliceInsCount + Math.max(spliceChangeDelta * -1, 0)),
+            Math.min(Math.max(changeDelta, 0), rangeSize) - (spliceInsCount + Math.max(spliceChangeDelta * -1, 0)),
             rangeEndNormalized - (spliceIndex + spliceInsCount),
           ), 0);
 
@@ -916,7 +916,7 @@ export class ReactiveArray<InputType> {
           // 0 and didn't add the same amount it deleted (which would 
           // mean that it has sufficient items)
           if (!spliceInsCount || spliceChangeDelta) {
-            if (addEnd) {
+            if (addEnd && addEnd !== Infinity) {
               // Only add to the end if it's not relative or infinite
               if (notRelativeInfiniteEnd) {
                 slicedArray.splice(

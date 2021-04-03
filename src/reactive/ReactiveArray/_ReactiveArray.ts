@@ -452,7 +452,7 @@ export class ReactiveArray<InputType> {
    */
   splice (
     start: number,
-    deleteCount: number = this.#value.length - start,
+    deleteCount: number = Math.max(this.#value.length - start, 0),
     ...items: Array<InputType | TArrayValueType<InputType>>
   ): Array<TArrayValueType<InputType>> {
         //@ts-ignore temp
